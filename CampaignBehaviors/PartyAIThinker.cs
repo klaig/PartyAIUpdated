@@ -348,14 +348,7 @@ namespace PartyAIControls.CampaignBehaviors
         }
 
         PartyAIClanPartySettings settings = SubModule.PartySettingsManager.Settings(party.LeaderHero);
-        
-        // CRITICAL: ONLY clear vanilla behaviors for LandPatrolAroundPoint (not PatrolClanLands!)
-        if (settings.HasActiveOrder && settings.Order.Behavior == OrderType.PatrolAroundPoint)
-        {
-            // Clear all vanilla behaviors - we'll provide our own land-only behaviors
-            thinkParams.AIBehaviorScores.Clear();
-        }
-        
+
         ImplementAllowRaidingVillages(party, thinkParams, settings);
         ImplementAllowJoiningArmies(party, thinkParams, settings);
         ImplementAllowBesieging(party, thinkParams, settings);
@@ -959,18 +952,22 @@ namespace PartyAIControls.CampaignBehaviors
             // This is carbon198's fix: filter happens regardless of distance to clan lands
             foreach ((AIBehaviorData behavior, float weight) in thinkParams.AIBehaviorScores)
             {
-                if (behavior.Party == null)
-                    continue;
+                CampaignVec2 behaviorTarget =
+        behavior.Position != CampaignVec2.Zero
+            ? behavior.Position
+            : behavior.Party?.Position ?? CampaignVec2.Zero;
 
-                // Use behavior.Position to get target location
-                Vec2 behaviorPos = behavior.Position.ToVec2();
+    if (behaviorTarget == CampaignVec2.Zero)
+    {
+        continue;
+    }
 
-                // FILTER: Only include targets within patrol range of nearest clan settlement
-                if (behaviorPos.Distance(clanPos) < range)
-                {
-                    newParams.Add((behavior, weight));
-                }
-            }
+    float distToTarget = behaviorTarget.ToVec2().Distance(clanPos);
+    if (distToTarget < range)
+    {
+        newParams.Add((behavior, weight));
+    }
+}
 
             if (party.Objective != PartyObjective.Aggressive)
             {
@@ -983,10 +980,8 @@ namespace PartyAIControls.CampaignBehaviors
             newParams = new List<(AIBehaviorData, float)>();
 
             Settlement centerSettlement = (Settlement)target;
-            
-            // Calculate range for patrol area
+
             float range = Campaign.Current.GetAverageDistanceBetweenClosestTwoTownsWithNavigationType(MobileParty.NavigationType.Default) * 0.9f * distanceFactor;
-            
             Vec2 centerPos = centerSettlement.GatePosition.ToVec2();
 
             // === PRIORITY: Low on food -> go get food ===
@@ -1055,9 +1050,10 @@ namespace PartyAIControls.CampaignBehaviors
                 }
             }
 
-            // === If too far from patrol center, issue command to walk there ===
+            // If too far from patrol center: walk there (and STOP; don't proceed to filtering)
             if (party.GetPosition2D.Distance(centerPos) > range * 4)
             {
+                // Keep the existing explicit action (optional but fine)
                 SetPartyAiAction.GetActionForVisitingSettlement(
                     party,
                     centerSettlement,
@@ -1065,26 +1061,35 @@ namespace PartyAIControls.CampaignBehaviors
                     false,
                     false
                 );
-                // DON'T return here - we still need to filter behaviors below!
+
+                // Critical: also provide a scored behavior so SwapParams doesn't wipe planning
+                newParams.Add((
+                    new AIBehaviorData(centerSettlement, AiBehavior.GoToSettlement, party.DesiredAiNavigationType, false, false, false),
+                    5f
+                ));
+
+                return;
             }
 
-            // === ALWAYS filter vanilla AI behaviors by distance ===
-            // This is the KEY fix: filter happens regardless of distance to patrol center
+            // In range: filter vanilla behavior scores by distance to center
             foreach ((AIBehaviorData behavior, float weight) in thinkParams.AIBehaviorScores)
             {
-                if (behavior.Party == null)
-                    continue;
-                
-                // Fix: Use behavior.Position instead of behavior.Party.GetPosition2D
-                // AIBehaviorData struct has a Position field (CampaignVec2)
-                float distToTarget = behavior.Position.ToVec2().Distance(centerPos);
-                
-                // FILTER: Only include targets within patrol range
-                if (distToTarget < range)
-                {
-                    newParams.Add((behavior, weight));
-                }
-            }
+                CampaignVec2 behaviorTarget =
+        behavior.Position != CampaignVec2.Zero
+            ? behavior.Position
+            : behavior.Party?.Position ?? CampaignVec2.Zero;
+
+    if (behaviorTarget == CampaignVec2.Zero)
+    {
+        continue;
+    }
+
+    float distToTarget = behaviorTarget.ToVec2().Distance(centerPos);
+    if (distToTarget < range)
+    {
+        newParams.Add((behavior, weight));
+    }
+}
 
             if (party.Objective != PartyObjective.Aggressive)
             {
