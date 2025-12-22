@@ -449,23 +449,23 @@ namespace PartyAIControls.CampaignBehaviors
 
       if (party.GetNumDaysForFoodToLast() < 4 && party.GetNumDaysForFoodToLast() > 0)
       {
-                Settlement town = FindNearestSettlement(
-                    s =>
-                        s.IsTown && // same faction OR neutral
-                        (s.MapFaction == party.MapFaction ||
-                         FactionManager.IsNeutralWithFaction(party.MapFaction, s.MapFaction)) &&
-                        (!(target is Settlement ts) || s != ts),
-                    target
-                );
-                if (town != null)
-                {
-                    SetPartyAiAction.GetActionForVisitingSettlement(
-                    party,
-                    town,
-                    party.DesiredAiNavigationType,
-                    false,
-                    false);
-                }
+        Settlement town = FindNearestSettlement(
+            s =>
+                s.IsTown && // same faction OR neutral
+                (s.MapFaction == party.MapFaction ||
+                 FactionManager.IsNeutralWithFaction(party.MapFaction, s.MapFaction)) &&
+                (!(target is Settlement ts) || s != ts),
+            target
+        );
+        if (town != null && TryGetBestNavigationDataForSettlement(party, town, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
+        {
+          SetPartyAiAction.GetActionForVisitingSettlement(
+            party,
+            town,
+            navType,
+            isFromPort,
+            isTargetingPort);
+        }
         return;
       }
 
@@ -477,13 +477,16 @@ namespace PartyAIControls.CampaignBehaviors
         }
         else if (target is Settlement targetSettlement)
         {
-              SetPartyAiAction.GetActionForVisitingSettlement(
-                party,
-                targetSettlement,
-                party.DesiredAiNavigationType,
-                false, // isFromPort
-                false  // isTargetingPort
-              );
+          if (TryGetBestNavigationDataForSettlement(party, targetSettlement, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
+          {
+            SetPartyAiAction.GetActionForVisitingSettlement(
+              party,
+              targetSettlement,
+              navType,
+              isFromPort,
+              isTargetingPort
+            );
+          }
         }
       }
     }
@@ -504,24 +507,24 @@ namespace PartyAIControls.CampaignBehaviors
 
       if (party.GetNumDaysForFoodToLast() < 4 && party.GetNumDaysForFoodToLast() > 0)
       {
-                Settlement town = FindNearestSettlement(
-                    s =>
-                        s.IsTown && // same faction OR neutral
-                        (s.MapFaction == party.MapFaction ||
-                         FactionManager.IsNeutralWithFaction(party.MapFaction, s.MapFaction)) &&
-                        (!(target is Settlement ts) || s != ts),
-                    target
-                );
-                if (town != null)
-                {
-                    SetPartyAiAction.GetActionForVisitingSettlement(
-                    party,
-                    town,
-                    party.DesiredAiNavigationType,
-                    false,
-                    false);
-                }
-                return;
+        Settlement town = FindNearestSettlement(
+            s =>
+                s.IsTown && // same faction OR neutral
+                (s.MapFaction == party.MapFaction ||
+                 FactionManager.IsNeutralWithFaction(party.MapFaction, s.MapFaction)) &&
+                (!(target is Settlement ts) || s != ts),
+            target
+        );
+        if (town != null && TryGetBestNavigationDataForSettlement(party, town, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
+        {
+          SetPartyAiAction.GetActionForVisitingSettlement(
+            party,
+            town,
+            navType,
+            isFromPort,
+            isTargetingPort);
+        }
+        return;
       }
 
       if (party.CurrentSettlement != target)
@@ -532,13 +535,16 @@ namespace PartyAIControls.CampaignBehaviors
         }
          else if (target is Settlement targetSettlement)
          {
-                    SetPartyAiAction.GetActionForVisitingSettlement(
-                      party,
-                      targetSettlement,
-                      party.DesiredAiNavigationType,
-                      false, // isFromPort
-                      false  // isTargetingPort
-                    );
+          if (TryGetBestNavigationDataForSettlement(party, targetSettlement, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
+          {
+            SetPartyAiAction.GetActionForVisitingSettlement(
+              party,
+              targetSettlement,
+              navType,
+              isFromPort,
+              isTargetingPort
+            );
+         }
          }
       }
     }
@@ -549,8 +555,6 @@ namespace PartyAIControls.CampaignBehaviors
             IMapPoint target = settings.Order.Target;
             Settlement settlement = (Settlement)target;
 
-            // Old: FactionManager.IsAlliedWithFaction(...)
-            // For 1.3.9 we'll restrict to own-faction settlements.
             if (target.MapFaction != party.MapFaction)
             {
                 settings.ClearOrder();
@@ -571,14 +575,14 @@ namespace PartyAIControls.CampaignBehaviors
                     target
                 );
 
-                if (town != null)
+                if (town != null && TryGetBestNavigationDataForSettlement(party, town, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
                 {
                     SetPartyAiAction.GetActionForVisitingSettlement(
                         party,
                         town,
-                        party.DesiredAiNavigationType,
-                        false, // isFromPort
-                        false  // isTargetingPort
+                        navType,
+                        isFromPort,
+                        isTargetingPort
                     );
                 }
 
@@ -588,25 +592,28 @@ namespace PartyAIControls.CampaignBehaviors
             // Not in the target settlement yet -> move there
             if (party.CurrentSettlement != settlement)
             {
-                if (settlement.IsUnderSiege)
+                if (TryGetBestNavigationDataForSettlement(party, settlement, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
                 {
-                    SetPartyAiAction.GetActionForDefendingSettlement(
-                        party,
-                        settlement,
-                        party.DesiredAiNavigationType,
-                        false, // isFromPort
-                        false  // isTargetingPort
-                    );
-                }
-                else
-                {
-                    SetPartyAiAction.GetActionForVisitingSettlement(
-                        party,
-                        settlement,
-                        party.DesiredAiNavigationType,
-                        false, // isFromPort
-                        false  // isTargetingPort
-                    );
+                    if (settlement.IsUnderSiege)
+                    {
+                        SetPartyAiAction.GetActionForDefendingSettlement(
+                            party,
+                            settlement,
+                            navType,
+                            isFromPort,
+                            isTargetingPort
+                        );
+                    }
+                    else
+                    {
+                        SetPartyAiAction.GetActionForVisitingSettlement(
+                            party,
+                            settlement,
+                            navType,
+                            isFromPort,
+                            isTargetingPort
+                        );
+                    }
                 }
             }
         }
@@ -873,10 +880,10 @@ namespace PartyAIControls.CampaignBehaviors
                     party.DesiredAiNavigationType
                 );
 
-                if (town != null)
+                if (town != null && TryGetBestNavigationDataForSettlement(party, town, out MobileParty.NavigationType townNavType, out bool townIsFromPort, out bool townIsTargetingPort))
                 {
                     newParams.Add((
-                        new AIBehaviorData(town, AiBehavior.GoToSettlement, party.DesiredAiNavigationType, false, false, false),
+                        new AIBehaviorData(town, AiBehavior.GoToSettlement, townNavType, false, townIsFromPort, townIsTargetingPort),
                         10f
                     ));
                 }
@@ -909,10 +916,13 @@ namespace PartyAIControls.CampaignBehaviors
 
                 if (clanSettlement.IsFortification && clanSettlement.IsUnderSiege)
                 {
-                    newParams.Add((
-                        new AIBehaviorData(clanSettlement, AiBehavior.DefendSettlement, party.DesiredAiNavigationType, false, false, false),
-                        8f
-                    ));
+                    if (TryGetBestNavigationDataForSettlement(party, clanSettlement, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
+                    {
+                        newParams.Add((
+                            new AIBehaviorData(clanSettlement, AiBehavior.DefendSettlement, navType, false, isFromPort, isTargetingPort),
+                            8f
+                        ));
+                    }
 
                     if (party.Objective != PartyObjective.Defensive)
                     {
@@ -923,10 +933,13 @@ namespace PartyAIControls.CampaignBehaviors
 
                 if (clanSettlement.IsVillage && clanSettlement.Village?.VillageState == Village.VillageStates.BeingRaided)
                 {
-                    newParams.Add((
-                        new AIBehaviorData(clanSettlement, AiBehavior.DefendSettlement, party.DesiredAiNavigationType, false, false, false),
-                        8f
-                    ));
+                    if (TryGetBestNavigationDataForSettlement(party, clanSettlement, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
+                    {
+                        newParams.Add((
+                            new AIBehaviorData(clanSettlement, AiBehavior.DefendSettlement, navType, false, isFromPort, isTargetingPort),
+                            8f
+                        ));
+                    }
 
                     if (party.Objective != PartyObjective.Defensive)
                     {
@@ -937,37 +950,36 @@ namespace PartyAIControls.CampaignBehaviors
             }
 
             // === If too far from clan lands, issue command to walk there ===
-            // KEY FIX: DON'T return early - still need to filter behaviors below!
             if (party.GetPosition2D.Distance(clanPos) > range * 4)
             {
-                newParams.Add((
-                    new AIBehaviorData(nearestClan, AiBehavior.GoToSettlement, party.DesiredAiNavigationType, false, false, false),
-                    5f
-                ));
-
-                // Note: Intentionally NOT setting PartyObjective here to let filtering below also contribute
+                if (TryGetBestNavigationDataForSettlement(party, nearestClan, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
+                {
+                    newParams.Add((
+                        new AIBehaviorData(nearestClan, AiBehavior.GoToSettlement, navType, false, isFromPort, isTargetingPort),
+                        5f
+                    ));
+                }
             }
 
             // === ALWAYS filter vanilla AI behaviors by distance ===
-            // This is carbon198's fix: filter happens regardless of distance to clan lands
             foreach ((AIBehaviorData behavior, float weight) in thinkParams.AIBehaviorScores)
             {
                 CampaignVec2 behaviorTarget =
-        behavior.Position != CampaignVec2.Zero
-            ? behavior.Position
-            : behavior.Party?.Position ?? CampaignVec2.Zero;
+                    behavior.Position != CampaignVec2.Zero
+                        ? behavior.Position
+                        : behavior.Party?.Position ?? CampaignVec2.Zero;
 
-    if (behaviorTarget == CampaignVec2.Zero)
-    {
-        continue;
-    }
+                if (behaviorTarget == CampaignVec2.Zero)
+                {
+                    continue;
+                }
 
-    float distToTarget = behaviorTarget.ToVec2().Distance(clanPos);
-    if (distToTarget < range)
-    {
-        newParams.Add((behavior, weight));
-    }
-}
+                float distToTarget = behaviorTarget.ToVec2().Distance(clanPos);
+                if (distToTarget < range)
+                {
+                    newParams.Add((behavior, weight));
+                }
+            }
 
             if (party.Objective != PartyObjective.Aggressive)
             {
@@ -981,8 +993,16 @@ namespace PartyAIControls.CampaignBehaviors
 
             Settlement centerSettlement = (Settlement)target;
 
-            float range = Campaign.Current.GetAverageDistanceBetweenClosestTwoTownsWithNavigationType(party.DesiredAiNavigationType) * 0.9f * distanceFactor;
+            // Range is a filtering/"too far" heuristic; navigation routing uses vanilla-derived data.
+            float range = Campaign.Current.GetAverageDistanceBetweenClosestTwoTownsWithNavigationType(MobileParty.NavigationType.Default) * 0.9f * distanceFactor;
             Vec2 centerPos = centerSettlement.GatePosition.ToVec2();
+
+            // Compute best navigation and port flags for reaching the patrol center.
+            if (!TryGetBestNavigationDataForSettlement(party, centerSettlement, out MobileParty.NavigationType centerNavType, out bool centerIsFromPort, out bool centerIsTargetingPort))
+            {
+                newParams = thinkParams.AIBehaviorScores.ConvertAll(s => (s.Item1, s.Item2));
+                return;
+            }
 
             // === PRIORITY: Low on food -> go get food ===
             int daysOfFood = party.GetNumDaysForFoodToLast();
@@ -994,20 +1014,13 @@ namespace PartyAIControls.CampaignBehaviors
                          (s.MapFaction == party.MapFaction ||
                           FactionManager.IsNeutralWithFaction(party.MapFaction, s.MapFaction)) &&
                          s != target,
-                    party.DesiredAiNavigationType
+                    centerNavType
                 );
-                
-                if (town != null)
+
+                if (town != null && TryGetBestNavigationDataForSettlement(party, town, out MobileParty.NavigationType townNavType, out bool townIsFromPort, out bool townIsTargetingPort))
                 {
                     newParams.Add((
-                        new AIBehaviorData(
-                            town,
-                            AiBehavior.GoToSettlement,
-                            party.DesiredAiNavigationType,
-                            false,
-                            false,
-                            false
-                        ),
+                        new AIBehaviorData(town, AiBehavior.GoToSettlement, townNavType, false, townIsFromPort, townIsTargetingPort),
                         2f
                     ));
                 }
@@ -1017,7 +1030,6 @@ namespace PartyAIControls.CampaignBehaviors
             // === PRIORITY: Defend nearby same-faction settlements under attack ===
             foreach (Settlement s in Settlement.All)
             {
-                // Check if settlement is within range and same faction
                 if (s.MapFaction != party.MapFaction)
                     continue;
 
@@ -1025,71 +1037,67 @@ namespace PartyAIControls.CampaignBehaviors
                 if (distToSettlement > range)
                     continue;
 
-                if (s.IsFortification && s.IsUnderSiege)
+                if ((s.IsFortification && s.IsUnderSiege) || (s.IsVillage && s.Village?.VillageState == Village.VillageStates.BeingRaided))
                 {
-                    SetPartyAiAction.GetActionForDefendingSettlement(
-                        party,
-                        s,
-                        party.DesiredAiNavigationType,
-                        false,
-                        false
-                    );
-                    return;
-                }
-
-                if (s.IsVillage && s.Village?.VillageState == Village.VillageStates.BeingRaided)
-                {
-                    SetPartyAiAction.GetActionForDefendingSettlement(
-                        party,
-                        s,
-                        party.DesiredAiNavigationType,
-                        false,
-                        false
-                    );
+                    if (TryGetBestNavigationDataForSettlement(party, s, out MobileParty.NavigationType defendNavType, out bool defendIsFromPort, out bool defendIsTargetingPort))
+                    {
+                        SetPartyAiAction.GetActionForDefendingSettlement(
+                            party,
+                            s,
+                            defendNavType,
+                            defendIsFromPort,
+                            defendIsTargetingPort
+                        );
+                    }
                     return;
                 }
             }
 
-            // If too far from patrol center: walk there (and STOP; don't proceed to filtering)
+            // If too far from patrol center: walk there
             if (party.GetPosition2D.Distance(centerPos) > range * 4)
             {
-                // Keep the existing explicit action (optional but fine)
                 SetPartyAiAction.GetActionForVisitingSettlement(
                     party,
                     centerSettlement,
-                    party.DesiredAiNavigationType,
-                    false,
-                    false
+                    centerNavType,
+                    centerIsFromPort,
+                    centerIsTargetingPort
                 );
 
-                // Critical: also provide a scored behavior so SwapParams doesn't wipe planning
                 newParams.Add((
-                    new AIBehaviorData(centerSettlement, AiBehavior.GoToSettlement, party.DesiredAiNavigationType, false, false, false),
+                    new AIBehaviorData(centerSettlement, AiBehavior.GoToSettlement, centerNavType, false, centerIsFromPort, centerIsTargetingPort),
                     5f
                 ));
 
                 return;
             }
 
+            // Anchor patrol on the intended settlement.
+            newParams.Add((
+                new AIBehaviorData(centerSettlement, AiBehavior.PatrolAroundPoint, centerNavType, false, centerIsFromPort, centerIsTargetingPort),
+                6f
+            ));
+
             // In range: filter vanilla behavior scores by distance to center
             foreach ((AIBehaviorData behavior, float weight) in thinkParams.AIBehaviorScores)
             {
                 CampaignVec2 behaviorTarget =
-        behavior.Position != CampaignVec2.Zero
-            ? behavior.Position
-            : behavior.Party?.Position ?? CampaignVec2.Zero;
+                    behavior.Position != CampaignVec2.Zero
+                        ? behavior.Position
+                        : behavior.Party?.Position ?? CampaignVec2.Zero;
 
-    if (behaviorTarget == CampaignVec2.Zero)
-    {
-        continue;
-    }
+                if (behaviorTarget == CampaignVec2.Zero)
+                    continue;
 
-    float distToTarget = behaviorTarget.ToVec2().Distance(centerPos);
-    if (distToTarget < range)
-    {
-        newParams.Add((behavior, weight));
-    }
-}
+                float distToTarget = behaviorTarget.ToVec2().Distance(centerPos);
+                if (distToTarget >= range)
+                    continue;
+
+                if (behavior.Party is Settlement ss && ss != centerSettlement)
+                    continue;
+
+                newParams.Add((behavior, weight));
+            }
 
             if (party.Objective != PartyObjective.Aggressive)
             {
@@ -1215,14 +1223,14 @@ namespace PartyAIControls.CampaignBehaviors
           party
       );
 
-      if (nearestFort != null)
+      if (nearestFort != null && TryGetBestNavigationDataForSettlement(party, nearestFort, out MobileParty.NavigationType navType, out bool isFromPort, out bool isTargetingPort))
       {
         SetPartyAiAction.GetActionForVisitingSettlement(
           party,
           nearestFort,
-          party.DesiredAiNavigationType,
-          false, // isFromPort
-          false  // isTargetingPort
+          navType,
+          isFromPort,
+          isTargetingPort
         );
       }
 
@@ -1288,6 +1296,71 @@ namespace PartyAIControls.CampaignBehaviors
     {
         dataStore.SyncData("_assumingDirectControl", ref _assumingDirectControl);
         dataStore.SyncData("_recentlyRecruitedFromSettlements", ref _recentlyRecruitedFromSettlements);
+    }
+
+    /// <summary>
+    /// Mirrors vanilla AiVisitSettlementBehavior.GetBestNavigationDataForVisitingSettlement.
+    /// Computes the best navigation type and port transition flags for reaching a settlement.
+    /// </summary>
+    private static bool TryGetBestNavigationDataForSettlement(
+      MobileParty party,
+      Settlement settlement,
+      out MobileParty.NavigationType navigationType,
+      out bool isFromPort,
+      out bool isTargetingPort)
+    {
+      navigationType = MobileParty.NavigationType.None;
+      isFromPort = false;
+      isTargetingPort = false;
+
+      if (party == null || settlement == null)
+      {
+        return false;
+      }
+
+      MobileParty.NavigationType bestNavType = MobileParty.NavigationType.None;
+      float bestDistance = float.MaxValue;
+      bool bestIsFromPort = false;
+
+      bool portBlocked = settlement.HasPort && settlement.SiegeEvent != null && settlement.SiegeEvent.IsBlockadeActive;
+
+      // Try non-port targeting first (unless blockade prevents portless approach for naval-capable parties).
+      if (!portBlocked || !party.HasNavalNavigationCapability)
+      {
+        AiHelper.GetBestNavigationTypeAndAdjustedDistanceOfSettlementForMobileParty(
+          party,
+          settlement,
+          false,
+          out bestNavType,
+          out bestDistance,
+          out bestIsFromPort);
+      }
+
+      // If the party can travel by sea and the settlement has a port, also try targeting the port.
+      if (party.HasNavalNavigationCapability && settlement.HasPort)
+      {
+        AiHelper.GetBestNavigationTypeAndAdjustedDistanceOfSettlementForMobileParty(
+          party,
+          settlement,
+          true,
+          out MobileParty.NavigationType portNavType,
+          out float portDistance,
+          out bool portIsFromPort);
+
+        if (portDistance < bestDistance)
+        {
+          navigationType = portNavType;
+          isFromPort = portIsFromPort;
+          isTargetingPort = true;
+          return navigationType != MobileParty.NavigationType.None;
+        }
+      }
+
+      navigationType = bestNavType;
+      isFromPort = bestIsFromPort;
+      isTargetingPort = false;
+
+      return navigationType != MobileParty.NavigationType.None;
     }
   }
 }
