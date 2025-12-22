@@ -981,7 +981,7 @@ namespace PartyAIControls.CampaignBehaviors
 
             Settlement centerSettlement = (Settlement)target;
 
-            float range = Campaign.Current.GetAverageDistanceBetweenClosestTwoTownsWithNavigationType(MobileParty.NavigationType.Default) * 0.9f * distanceFactor;
+            float range = Campaign.Current.GetAverageDistanceBetweenClosestTwoTownsWithNavigationType(party.DesiredAiNavigationType) * 0.9f * distanceFactor;
             Vec2 centerPos = centerSettlement.GatePosition.ToVec2();
 
             // === PRIORITY: Low on food -> go get food ===
