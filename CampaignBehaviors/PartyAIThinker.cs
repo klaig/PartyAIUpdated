@@ -39,6 +39,21 @@ namespace PartyAIControls.CampaignBehaviors
     private List<MobileParty> _assumingDirectControl = new();
     private List<PAISettlementVisitLog> _recentlyRecruitedFromSettlements = new();
 
+    private static CampaignVec2 TryGetMapPointPosition(IMapPoint mapPoint)
+    {
+      if (mapPoint == null)
+        return CampaignVec2.Zero;
+
+      try
+      {
+        return mapPoint.Position;
+      }
+      catch (KeyNotFoundException)
+      {
+        return CampaignVec2.Zero;
+      }
+    }
+
     internal MBReadOnlyList<MobileParty> AssumingDirectControl { get => _assumingDirectControl.ToMBList(); }
 
     internal void ClearAssumingDirectControl() => _assumingDirectControl.Clear();
@@ -187,7 +202,7 @@ namespace PartyAIControls.CampaignBehaviors
       if (settings.HasActiveOrder)
       {
         // DON'T abandon patrol orders for low food - patrol logic handles it internally
-        if (settings.Order.Behavior != OrderType.PatrolAroundPoint && 
+        if (settings.Order.Behavior != OrderType.PatrolAroundPoint &&
             settings.Order.Behavior != OrderType.PatrolClanLands)
         {
           if (party.GetNumDaysForFoodToLast() < 3 && party.GetNumDaysForFoodToLast() > 0)
@@ -300,8 +315,6 @@ namespace PartyAIControls.CampaignBehaviors
             if (SubModule.PartyThinker.AssumingDirectControl.Contains(settings.Hero.PartyBelongedTo))
             {
               settings.SetOrder(new(MainParty, OrderType.EscortParty));
-              // Fix: apply the escort action to the actual escorting party (settings.Hero.PartyBelongedTo)
-              // and use the MAIN party's DesiredAiNavigationType so followers will switch to naval if the main party did.
               MobileParty escortingParty = settings.Hero.PartyBelongedTo;
               if (escortingParty != null)
               {
@@ -315,7 +328,7 @@ namespace PartyAIControls.CampaignBehaviors
               }
               else
               {
-                    settings.ClearOrder();
+                settings.ClearOrder();
               }
             }
             break;
@@ -342,79 +355,76 @@ namespace PartyAIControls.CampaignBehaviors
 
     internal void ProcessOrder(MobileParty party, PartyThinkParams thinkParams)
     {
-        if (!SubModule.PartySettingsManager.IsHeroManageable(party.LeaderHero))
+      if (!SubModule.PartySettingsManager.IsHeroManageable(party.LeaderHero))
+      {
+        return;
+      }
+
+      PartyAIClanPartySettings settings = SubModule.PartySettingsManager.Settings(party.LeaderHero);
+
+      ImplementAllowRaidingVillages(party, thinkParams, settings);
+      ImplementAllowJoiningArmies(party, thinkParams, settings);
+      ImplementAllowBesieging(party, thinkParams, settings);
+
+      if (!settings.HasActiveOrder)
+      {
+        return;
+      }
+
+      if (settings.Order.Behavior != OrderType.PatrolAroundPoint &&
+          settings.Order.Behavior != OrderType.PatrolClanLands)
+      {
+        if (party.GetNumDaysForFoodToLast() < 3 && party.GetNumDaysForFoodToLast() > 0)
         {
-            return;
+          AbandonOrderForNoFood(party, settings);
+          return;
         }
+      }
 
-        PartyAIClanPartySettings settings = SubModule.PartySettingsManager.Settings(party.LeaderHero);
+      IMapPoint target = settings.Order.Target;
+      PartyObjective existingObjective = party.Objective;
+      List<(AIBehaviorData, float)> newParams;
 
-        ImplementAllowRaidingVillages(party, thinkParams, settings);
-        ImplementAllowJoiningArmies(party, thinkParams, settings);
-        ImplementAllowBesieging(party, thinkParams, settings);
+      switch (settings.Order.Behavior)
+      {
+        case OrderType.EscortParty:
+          ImplementEscortParty(settings, party, target, out newParams);
+          break;
+        case OrderType.RecruitFromTemplate:
+          ImplementRecruitFromTemplate(settings, party);
+          newParams = new(thinkParams.AIBehaviorScores);
+          break;
+        case OrderType.AttackParty:
+          ImplementAttackParty(settings, party, target, out newParams);
+          break;
+        case OrderType.PatrolAroundPoint:
+          ImplementPatrolAroundSettlement(settings, party, target, thinkParams, out newParams, distanceFactor: settings.PatrolRadius);
+          break;
+        case OrderType.BesiegeSettlement:
+          ImplementBesiegeSettlement(settings, party, target, thinkParams, out newParams);
+          break;
+        case OrderType.StayInSettlement:
+          ImplementStayInSettlement(settings, party, out newParams);
+          break;
+        case OrderType.VisitSettlement:
+          ImplementVisitSettlement(settings, party, out newParams);
+          break;
+        case OrderType.DefendSettlement:
+          ImplementDefendSettlement(settings, party, out newParams);
+          break;
+        case OrderType.PatrolClanLands:
+          ImplementPatrolClanLands(settings.Hero, party, target, thinkParams, out newParams);
+          break;
+        default:
+          return;
+      }
 
-        if (!settings.HasActiveOrder)
-        {
-            return;
-        }
+      SwapParams(thinkParams, party, newParams);
 
-        // DON'T abandon patrol orders for low food - let the patrol logic handle it
-        if (settings.Order.Behavior != OrderType.PatrolAroundPoint && 
-            settings.Order.Behavior != OrderType.PatrolClanLands)
-        {
-            if (party.GetNumDaysForFoodToLast() < 3 && party.GetNumDaysForFoodToLast() > 0)
-            {
-                AbandonOrderForNoFood(party, settings);
-                return;
-            }
-        }
-
-        IMapPoint target = settings.Order.Target;
-        PartyObjective existingObjective = party.Objective;
-        List<(AIBehaviorData, float)> newParams;
-
-        switch (settings.Order.Behavior)
-        {
-            case OrderType.EscortParty:
-              ImplementEscortParty(settings, party, target, out newParams);
-              break;
-            case OrderType.RecruitFromTemplate:
-              ImplementRecruitFromTemplate(settings, party);
-              newParams = new(thinkParams.AIBehaviorScores);
-              break;
-            case OrderType.AttackParty:
-              ImplementAttackParty(settings, party, target, out newParams);
-              break;
-            case OrderType.PatrolAroundPoint:
-              // Patrol logic handles its own food management
-              ImplementPatrolAroundSettlement(settings, party, target, thinkParams, out newParams, distanceFactor: settings.PatrolRadius);
-              break;
-            case OrderType.BesiegeSettlement:
-              ImplementBesiegeSettlement(settings, party, target, thinkParams, out newParams);
-              break;
-            case OrderType.StayInSettlement:
-              ImplementStayInSettlement(settings, party, out newParams);
-              break;
-            case OrderType.VisitSettlement:
-              ImplementVisitSettlement(settings, party, out newParams);
-              break;
-            case OrderType.DefendSettlement:
-              ImplementDefendSettlement(settings, party, out newParams);
-              break;
-            case OrderType.PatrolClanLands:
-              // Patrol logic handles its own food management
-              ImplementPatrolClanLands(settings.Hero, party, target, thinkParams, out newParams);
-              break;
-            default:
-              return;
-        }
-
-        SwapParams(thinkParams, party, newParams);
-
-        if (existingObjective != party.Objective)
-        {
-            settings.CachedPartyObjective = existingObjective;
-        }
+      if (existingObjective != party.Objective)
+      {
+        settings.CachedPartyObjective = existingObjective;
+      }
     }
 
     private void SwapParams(PartyThinkParams thinkParams, MobileParty party, List<(AIBehaviorData, float)> newParams)
@@ -688,61 +698,62 @@ namespace PartyAIControls.CampaignBehaviors
 
         private void ImplementRecruitFromTemplate(PartyAIClanPartySettings settings, MobileParty party)
         {
-            int freeSlots = (int)((1f - party.PartySizeRatio) * party.Party.PartySizeLimit);
-            if (freeSlots < 1)
-            {
-                settings.ClearOrder();
-                return;
-            }
+      int freeSlots = (int)((1f - party.PartySizeRatio) * party.Party.PartySizeLimit);
+      if (freeSlots < 1)
+      {
+        settings.ClearOrder();
+        return;
+      }
 
-            if (settings.Order.Target is not Settlement currentTarget || party.CurrentSettlement == currentTarget)
-            {
-                IEnumerable<Settlement> settlements = Settlement.All.Where(s =>
-                    (s.IsVillage || s.IsTown) &&
-                    (settings.PartyTemplate?.TroopCultures.Contains(s.Culture) ?? true));
+      if (settings.Order.Target is not Settlement currentTarget || party.CurrentSettlement == currentTarget)
+      {
+        IEnumerable<Settlement> settlements = Settlement.All.Where(s =>
+          (s.IsVillage || s.IsTown) &&
+          (settings.RecruitFromEnemySettlements || !FactionManager.IsAtWarAgainstFaction(party.MapFaction, s.MapFaction)) &&
+          (settings.PartyTemplate?.TroopCultures.Contains(s.Culture) ?? true));
 
-                currentTarget = FindNearestSettlement(s =>
-                {
-                    if (s == party.CurrentSettlement || s.GetPosition2D.Distance(party.GetPosition2D) < 2f)
-                        return false;
+        currentTarget = FindNearestSettlement(s =>
+        {
+          if (s == party.CurrentSettlement || s.GetPosition2D.Distance(party.GetPosition2D) < 2f)
+            return false;
 
-                    if (_recentlyRecruitedFromSettlements.Any(l => l.Settlement == s && l.Party == party))
-                        return false;
+          if (_recentlyRecruitedFromSettlements.Any(l => l.Settlement == s && l.Party == party))
+            return false;
 
-                    int count = ComputeRecruitableVolunteersCount(party, s, settings);
+          int count = ComputeRecruitableVolunteersCount(party, s, settings);
 
-                    if (count < 3 && freeSlots > 3)
-                        return false;
+          if (count < 3 && freeSlots > 3)
+            return false;
 
-                    if (count == 0)
-                        return false;
+          if (count == 0)
+            return false;
 
-                    return true;
-                }, party, settlements);
+          return true;
+        }, party, settlements);
 
-                if (currentTarget != null)
-                {
-                    _recentlyRecruitedFromSettlements.Add(new(currentTarget, CampaignTime.Now, party));
-                    settings.Order.Target = currentTarget;
-                }
-            }
+        if (currentTarget != null)
+        {
+          _recentlyRecruitedFromSettlements.Add(new(currentTarget, CampaignTime.Now, party));
+          settings.Order.Target = currentTarget;
+        }
+      }
 
-            if (currentTarget == null)
-            {
-                if (party.Ai.DoNotMakeNewDecisions)
-                {
-                    party.Ai.SetDoNotMakeNewDecisions(false);
-                    ResetPartyAi(party);
-                }
-                return;
-            }
+      if (currentTarget == null)
+      {
+        if (party.Ai.DoNotMakeNewDecisions)
+        {
+          party.Ai.SetDoNotMakeNewDecisions(false);
+          ResetPartyAi(party);
+        }
+        return;
+      }
 
-            party.Ai.SetDoNotMakeNewDecisions(true);
+      party.Ai.SetDoNotMakeNewDecisions(true);
 
-            // Use ALL navigation for subsequent target selection when the party can use naval routes.
-            // AI parties can embark/disembark from shore without a port, so prefer allowing naval paths.
-            var navType = party.HasNavalNavigationCapability ? MobileParty.NavigationType.All : party.DesiredAiNavigationType;
-            party.DesiredAiNavigationType = navType;
+      // Use ALL navigation for subsequent target selection when the party can use naval routes.
+      // AI parties can embark/disembark from shore without a port, so prefer allowing naval paths.
+      var navType = party.HasNavalNavigationCapability ? MobileParty.NavigationType.All : party.DesiredAiNavigationType;
+      party.DesiredAiNavigationType = navType;
 
     SetPartyAiAction.GetActionForVisitingSettlement(
         party,
@@ -944,8 +955,8 @@ namespace PartyAIControls.CampaignBehaviors
                     if (party.Objective != PartyObjective.Defensive)
                     {
                         party.SetPartyObjective(PartyObjective.Defensive);
-                    }
-                    return;
+                      }
+                      return;
                 }
             }
 
@@ -964,15 +975,21 @@ namespace PartyAIControls.CampaignBehaviors
             // === ALWAYS filter vanilla AI behaviors by distance ===
             foreach ((AIBehaviorData behavior, float weight) in thinkParams.AIBehaviorScores)
             {
-                CampaignVec2 behaviorTarget =
-                    behavior.Position != CampaignVec2.Zero
-                        ? behavior.Position
-                        : behavior.Party?.Position ?? CampaignVec2.Zero;
+                CampaignVec2 behaviorTarget = CampaignVec2.Zero;
+
+                if (behavior.Position != CampaignVec2.Zero)
+                {
+                    behaviorTarget = behavior.Position;
+                }
+                else if (behavior.Party != null)
+                {
+                    behaviorTarget = TryGetMapPointPosition(behavior.Party);
+                    if (behaviorTarget == CampaignVec2.Zero)
+                        continue;
+                }
 
                 if (behaviorTarget == CampaignVec2.Zero)
-                {
                     continue;
-                }
 
                 float distToTarget = behaviorTarget.ToVec2().Distance(clanPos);
                 if (distToTarget < range)
@@ -1081,22 +1098,27 @@ namespace PartyAIControls.CampaignBehaviors
             // In range: filter vanilla behavior scores by distance to center
             foreach ((AIBehaviorData behavior, float weight) in thinkParams.AIBehaviorScores)
             {
-                CampaignVec2 behaviorTarget =
-                    behavior.Position != CampaignVec2.Zero
-                        ? behavior.Position
-                        : behavior.Party?.Position ?? CampaignVec2.Zero;
+                CampaignVec2 behaviorTarget = CampaignVec2.Zero;
+
+                if (behavior.Position != CampaignVec2.Zero)
+                {
+                    behaviorTarget = behavior.Position;
+                }
+                else if (behavior.Party != null)
+                {
+                    behaviorTarget = TryGetMapPointPosition(behavior.Party);
+                    if (behaviorTarget == CampaignVec2.Zero)
+                        continue;
+                }
 
                 if (behaviorTarget == CampaignVec2.Zero)
                     continue;
 
                 float distToTarget = behaviorTarget.ToVec2().Distance(centerPos);
-                if (distToTarget >= range)
-                    continue;
-
-                if (behavior.Party is Settlement ss && ss != centerSettlement)
-                    continue;
-
-                newParams.Add((behavior, weight));
+                if (distToTarget < range)
+                {
+                    newParams.Add((behavior, weight));
+                }
             }
 
             if (party.Objective != PartyObjective.Aggressive)
@@ -1318,18 +1340,23 @@ namespace PartyAIControls.CampaignBehaviors
         return false;
       }
 
+      // Normalize to canonical Settlement instance to avoid cache-key identity mismatches
+      Settlement normalizedSettlement = Settlement.Find(settlement.StringId) ?? settlement;
+
       MobileParty.NavigationType bestNavType = MobileParty.NavigationType.None;
       float bestDistance = float.MaxValue;
       bool bestIsFromPort = false;
 
-      bool portBlocked = settlement.HasPort && settlement.SiegeEvent != null && settlement.SiegeEvent.IsBlockadeActive;
+      bool portBlocked = normalizedSettlement.HasPort &&
+                         normalizedSettlement.SiegeEvent != null &&
+                         normalizedSettlement.SiegeEvent.IsBlockadeActive;
 
       // Try non-port targeting first (unless blockade prevents portless approach for naval-capable parties).
       if (!portBlocked || !party.HasNavalNavigationCapability)
       {
         AiHelper.GetBestNavigationTypeAndAdjustedDistanceOfSettlementForMobileParty(
           party,
-          settlement,
+          normalizedSettlement,
           false,
           out bestNavType,
           out bestDistance,
@@ -1337,11 +1364,11 @@ namespace PartyAIControls.CampaignBehaviors
       }
 
       // If the party can travel by sea and the settlement has a port, also try targeting the port.
-      if (party.HasNavalNavigationCapability && settlement.HasPort)
+      if (party.HasNavalNavigationCapability && normalizedSettlement.HasPort)
       {
         AiHelper.GetBestNavigationTypeAndAdjustedDistanceOfSettlementForMobileParty(
           party,
-          settlement,
+          normalizedSettlement,
           true,
           out MobileParty.NavigationType portNavType,
           out float portDistance,

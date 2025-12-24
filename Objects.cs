@@ -42,6 +42,7 @@ namespace PartyAIControls
     [SaveableProperty(25)] public float DismissUnwantedTroopsPercentage { get; set; } = 0.8f;
     [SaveableProperty(26)] public bool AllowTakeTroopsFromSettlement { get; set; } = false;
     [SaveableProperty(27)] public float PatrolRadius { get; set; } = 1f;
+    [SaveableProperty(28)] public bool RecruitFromEnemySettlements { get; set; } = false;
 
     public PartyAIClanPartySettings(Hero hero)
     {
@@ -130,6 +131,7 @@ namespace PartyAIControls
       DismissUnwantedTroops = settings.DismissUnwantedTroops;
       DismissUnwantedTroopsPercentage = settings.DismissUnwantedTroopsPercentage;
       PatrolRadius = settings.PatrolRadius;
+      RecruitFromEnemySettlements = settings.RecruitFromEnemySettlements;
       ResetBudgets();
     }
 

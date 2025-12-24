@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using System.Collections.Generic;
 using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.Map;
 using TaleWorlds.CampaignSystem.Party;
@@ -43,64 +44,91 @@ namespace PartyAIControls.HarmonyPatches
 
             // Patrol centre is current position
             // (vanilla also uses a point, but this is close enough for our aggro logic)
-            Vec2 center = ____mobileParty.Position.ToVec2();
-
-            LocatableSearchData<MobileParty> scan =
-                MobileParty.StartFindingLocatablesAroundPosition(center, AggroRadius);
-
-            for (MobileParty target = MobileParty.FindNextLocatable(ref scan);
-                 target != null;
-                 target = MobileParty.FindNextLocatable(ref scan))
+            Vec2 center;
+            try
             {
-                if (target == ____mobileParty)
-                    continue;
+                center = ____mobileParty.Position.ToVec2();
+            }
+            catch (KeyNotFoundException)
+            {
+                return;
+            }
 
-                if (!target.IsActive || target.IsMainParty || target.IsDisbanding)
-                    continue;
+            try
+            {
+                LocatableSearchData<MobileParty> scan =
+                    MobileParty.StartFindingLocatablesAroundPosition(center, AggroRadius);
 
-                if (target.CurrentSettlement != null)
-                    continue;
+                for (MobileParty target = MobileParty.FindNextLocatable(ref scan);
+                     target != null;
+                     target = MobileParty.FindNextLocatable(ref scan))
+                {
+                    if (target == ____mobileParty)
+                        continue;
 
-                IFaction targetFaction = target.MapFaction;
-                if (targetFaction == null || !targetFaction.IsAtWarWith(____mobileParty.MapFaction))
-                    continue;
+                    if (!target.IsActive || target.IsMainParty || target.IsDisbanding)
+                        continue;
 
-                // Ignore attached parties unless they are the army leader
-                if (target.Army != null && target != target.Army.LeaderParty)
-                    continue;
+                    if (target.CurrentSettlement != null)
+                        continue;
 
-                // Strength ratio using EstimatedStrength (matches vanilla EngageParty logic)
-                float myStrength = ____mobileParty.Army?.EstimatedStrength
-                                   ?? ____mobileParty.Party.EstimatedStrength;
+                    IFaction targetFaction = target.MapFaction;
+                    if (targetFaction == null || !targetFaction.IsAtWarWith(____mobileParty.MapFaction))
+                        continue;
 
-                if (myStrength <= 0f)
-                    myStrength = 1f;
+                    // Ignore attached parties unless they are the army leader
+                    if (target.Army != null && target != target.Army.LeaderParty)
+                        continue;
 
-                float theirStrength = target.Army?.EstimatedStrength
-                                      ?? target.Party.EstimatedStrength;
+                    // Strength ratio using EstimatedStrength (matches vanilla EngageParty logic)
+                    float myStrength = ____mobileParty.Army?.EstimatedStrength
+                                       ?? ____mobileParty.Party.EstimatedStrength;
 
-                float ratio = theirStrength / myStrength;
+                    if (myStrength <= 0f)
+                        myStrength = 1f;
 
-                // Don’t chase things way bigger or tiny trash
-                if (ratio > 0.8f || ratio < 0.05f)
-                    continue;
+                    float theirStrength = target.Army?.EstimatedStrength
+                                          ?? target.Party.EstimatedStrength;
 
-                // Don’t chase faster parties
-                if (target.Speed > ____mobileParty.Speed)
-                    continue;
+                    float ratio = theirStrength / myStrength;
 
-                // Must be reasonably close to the original patrol point
-                float distSq = target.Position.ToVec2()
-                               .DistanceSquared(bestTargetPoint.ToVec2());
+                    // Don’t chase things way bigger or tiny trash
+                    if (ratio > 0.8f || ratio < 0.05f)
+                        continue;
 
-                if (distSq > MaxDistanceFromPatrolPoint * MaxDistanceFromPatrolPoint)
-                    continue;
+                    // Don’t chase faster parties
+                    if (target.Speed > ____mobileParty.Speed)
+                        continue;
 
-                // Override: tell the AI we want to engage this party
-                bestAiBehavior = AiBehavior.EngageParty;
-                behaviorObject = target.Party;
-                bestTargetPoint = target.Position;
+                    CampaignVec2 targetPos;
+                    try
+                    {
+                        targetPos = target.Position;
+                    }
+                    catch (KeyNotFoundException)
+                    {
+                        continue;
+                    }
 
+                    // Must be reasonably close to the original patrol point
+                    float distSq = targetPos.ToVec2()
+                                   .DistanceSquared(bestTargetPoint.ToVec2());
+
+                    if (distSq > MaxDistanceFromPatrolPoint * MaxDistanceFromPatrolPoint)
+                        continue;
+
+                    // Override: tell the AI we want to engage this party
+                    bestAiBehavior = AiBehavior.EngageParty;
+                    behaviorObject = target.Party;
+                    bestTargetPoint = targetPos;
+
+                    return;
+                }
+            }
+            catch (KeyNotFoundException)
+            {
+                // LocatorGrid internal state can desync after load/mod interactions.
+                // Skip aggressive patrol override rather than crashing the campaign tick.
                 return;
             }
         }

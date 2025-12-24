@@ -40,6 +40,7 @@ namespace PartyAIControls.ViewModels.MenuOptionVMs
       AllowRaidVillagesToggle = new PartyAIOptionToggleVM(new TextObject("{=PArB6kGmInk}May Raid Villages"), _settings.AllowRaidVillages, new TextObject("{=PAIG8Ela5BJ}Allow this party to raid hostile villages. If disabled, parties will leave armies that are raiding, refunding the influence to the army leader."));
       AllowLordPrisonersToggle = new PartyAIOptionToggleVM(new TextObject("{=PAIv3zQDvLn}May Take Lords Prisoner"), _settings.AllowLordPrisoners, new TextObject("{=PAIgE8T3Qxh}Allow this party to take enemy lords prisoner after battle. If disabled, parties will release captured lords."));
       AllowRecruitmentToggle = new PartyAIOptionToggleVM(new TextObject("{=PAIBMzCXm1l}May Recruit Troops"), _settings.AllowRecruitment, new TextObject("{=PAIhSoz6d1X}Allow this party to recruit troops. If you disable this setting, you will have to supply the party with troops manually. If you do not, you can expect the AI to behave stupidly."));
+      RecruitFromEnemySettlementsToggle = new PartyAIOptionToggleVM(new TextObject("{=PAIY2oX1c1Y}Recruit From Enemy Settlements"), _settings.RecruitFromEnemySettlements, new TextObject("{=PAIu0g5Z5Yk}Allow this party to recruit troops from enemy settlements. This can be useful for parties that are operating behind enemy lines, but is also risky."));
       BuyHorsesToggle = new PartyAIOptionToggleVM(new TextObject("{=PAIWXzJxqgi}Buy Horses"), _settings.BuyHorses, new TextObject("{=PAIK3xNilPb}Buy enough horses to mount your troops on foot in order to increase movement speed. If you set the budget to zero, this will still prevent unncessary selling of horses. Please note that some horse types do not count towards the speed bonus, like Sumpter Horses in native. This feature won't treat a horse as providing a speed bonus unless the game treats it that way in native or whatever overhaul you play."));
       RecruitmentToggle = new PartyAIOptionToggleVM(new TextObject("{=PAIpTraw5lq}Recruit when below "), _settings.AutoRecruitment, new TextObject("{=PAIMah8wd6z}Automatically set an order to go recruiting when party is below X% of it's max party size. The order will only be added if there is not an existing order to recruit troops in the queue and you are not directly commanding the party."));
       DismissUnwantedTroopsToggle = new PartyAIOptionToggleVM(new TextObject("{=PAIQVkiTiSf}Dismiss unwanted troops when above "), _settings.DismissUnwantedTroops, new TextObject("{=PAIrFBBz1kW}Dismiss troops that either don't fit your party template or don't fit your chosen party composition percentages. This will only happen when aboved the specified party size percentage so that the party won't leave itself vulnerable."));
@@ -74,6 +75,7 @@ namespace PartyAIControls.ViewModels.MenuOptionVMs
     [DataSourceProperty] public PartyAIOptionToggleVM AllowRaidVillagesToggle { get; private set; }
     [DataSourceProperty] public PartyAIOptionToggleVM AllowLordPrisonersToggle { get; private set; }
     [DataSourceProperty] public PartyAIOptionToggleVM AllowRecruitmentToggle { get; private set; }
+    [DataSourceProperty] public PartyAIOptionToggleVM RecruitFromEnemySettlementsToggle { get; private set; }
     [DataSourceProperty] public PartyAIOptionToggleVM BuyHorsesToggle { get; private set; }
     [DataSourceProperty] public PartyAIOptionToggleVM RecruitmentToggle { get; private set; }
     [DataSourceProperty] public PartyAIOptionToggleVM DismissUnwantedTroopsToggle { get; private set; }
@@ -151,6 +153,7 @@ namespace PartyAIControls.ViewModels.MenuOptionVMs
       _settings.AllowRaidVillages = AllowRaidVillagesToggle.IsSelected;
       _settings.AllowLordPrisoners = AllowLordPrisonersToggle.IsSelected;
       _settings.AllowRecruitment = AllowRecruitmentToggle.IsSelected;
+      _settings.RecruitFromEnemySettlements = RecruitFromEnemySettlementsToggle.IsSelected;
       _settings.BuyHorses = BuyHorsesToggle.IsSelected;
       _settings.BuyHorsesBudget = _buyHorsesBudget;
       _settings.AutoRecruitmentPercentage = _autoRecruitmentPercentage;
