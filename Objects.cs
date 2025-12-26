@@ -38,7 +38,7 @@ namespace PartyAIControls
     [SaveableProperty(21)] public List<PAICustomOrder> OrderQueue { get; set; } = new();
     [SaveableProperty(22)] public bool AutoRecruitment { get; set; } = true;
     [SaveableProperty(23)] public float AutoRecruitmentPercentage { get; set; } = 0.5f;
-    [SaveableProperty(24)] public bool DismissUnwantedTroops { get; set; } = true;
+    [SaveableProperty(24)] public bool DismissUnwantedTroops { get; set; } = false;
     [SaveableProperty(25)] public float DismissUnwantedTroopsPercentage { get; set; } = 0.8f;
     [SaveableProperty(26)] public bool AllowTakeTroopsFromSettlement { get; set; } = false;
     [SaveableProperty(27)] public float PatrolRadius { get; set; } = 1f;
